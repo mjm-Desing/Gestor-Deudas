@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#4f46e5">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,32 +13,61 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        body { -webkit-tap-highlight-color: transparent; }
+        html, body {
+            height: 100%;
+            height: 100dvh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .app-viewport {
+            height: 100%;
+            height: 100dvh;
+        }
+
+        .smooth-scroll {
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-y: contain;
+        }
+
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
         .modal-enter { transform: translateY(100%); }
-        .modal-enter-active { transform: translateY(0); transition: transform 0.3s ease-out; }
+        .modal-enter-active { transform: translateY(0); transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
         .modal-exit { transform: translateY(0); }
         .modal-exit-active { transform: translateY(100%); transition: transform 0.2s ease-in; }
+
+        /* Ajuste de margen para barra inferior de gestos en iOS / Android */
+        .fab-position {
+            bottom: max(1.5rem, calc(1.5rem + env(safe-area-inset-bottom)));
+            right: max(1.5rem, calc(1.5rem + env(safe-area-inset-right)));
+        }
+
+        .safe-pb {
+            padding-bottom: max(6rem, calc(6rem + env(safe-area-inset-bottom)));
+        }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans h-screen overflow-hidden flex justify-center">
+<body class="bg-gray-100 text-gray-800 font-sans flex justify-center items-center">
 
-    <div class="w-full max-w-md h-full bg-white shadow-xl relative flex flex-col overflow-hidden">
+    <div class="w-full max-w-md app-viewport bg-white shadow-2xl relative flex flex-col overflow-hidden">
         
         <!-- HEADER GENERAL -->
-        <header class="bg-indigo-600 text-white p-4 shadow-md flex-shrink-0 z-10 flex items-center">
-            <button id="btnBack" class="mr-3 hidden p-1 rounded-full hover:bg-indigo-700 transition" onclick="app.goBack()">
-                <i data-lucide="arrow-left"></i>
+        <header class="bg-indigo-600 text-white p-4 shadow-md flex-shrink-0 z-10 flex items-center pt-max(1rem, env(safe-area-inset-top))">
+            <button id="btnBack" class="mr-3 hidden p-1.5 rounded-full hover:bg-indigo-700 active:bg-indigo-800 transition" onclick="app.goBack()">
+                <i data-lucide="arrow-left" class="w-5 h-5"></i>
             </button>
             <h1 id="headerTitle" class="text-xl font-bold flex-1">Mis Cuentas</h1>
-            <button id="btnSettings" class="p-1 rounded-full hover:bg-indigo-700 transition" onclick="app.openModal('modal-settings')">
-                <i data-lucide="settings"></i>
+            <button id="btnSettings" class="p-1.5 rounded-full hover:bg-indigo-700 active:bg-indigo-800 transition" onclick="app.openModal('modal-settings')">
+                <i data-lucide="settings" class="w-5 h-5"></i>
             </button>
         </header>
 
         <!-- VISTA 1: DASHBOARD -->
-        <main id="view-dashboard" class="flex-1 overflow-y-auto hide-scroll pb-24">
+        <main id="view-dashboard" class="flex-1 overflow-y-auto smooth-scroll hide-scroll safe-pb">
             
             <!-- Resumen Financiero y Gráfico -->
             <div class="bg-indigo-50 m-4 p-5 rounded-2xl shadow-sm border border-indigo-100">
@@ -69,9 +98,9 @@
                         <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
                             <i data-lucide="search" class="w-4 h-4"></i>
                         </span>
-                        <input type="text" id="input-search-persona" oninput="app.filterPersonas()" placeholder="Buscar persona..." class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+                        <input type="text" id="input-search-persona" oninput="app.filterPersonas()" placeholder="Buscar persona..." class="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
                     </div>
-                    <select id="select-order-persona" onchange="app.filterPersonas()" class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-600 focus:outline-none focus:border-indigo-500">
+                    <select id="select-order-persona" onchange="app.filterPersonas()" class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-600 focus:outline-none focus:border-indigo-500">
                         <option value="nombre">A - Z</option>
                         <option value="monto">Mayor Saldo</option>
                     </select>
@@ -88,11 +117,11 @@
         </main>
 
         <!-- VISTA 2: DETALLE DE PERSONA -->
-        <main id="view-persona" class="flex-1 overflow-y-auto hide-scroll pb-24 hidden bg-gray-50">
+        <main id="view-persona" class="flex-1 overflow-y-auto smooth-scroll hide-scroll safe-pb hidden bg-gray-50">
             <div class="bg-white p-4 shadow-sm mb-2 border-b">
                 <div class="flex justify-between items-center">
                     <div class="flex items-center gap-3">
-                        <button onclick="app.confirmDeletePersona()" class="text-gray-400 hover:text-red-600 transition p-1" title="Eliminar persona">
+                        <button onclick="app.confirmDeletePersona()" class="text-gray-400 hover:text-red-600 p-1.5 rounded-lg active:bg-gray-100 transition" title="Eliminar persona">
                             <i data-lucide="trash-2" class="w-5 h-5"></i>
                         </button>
                         <div>
@@ -103,10 +132,10 @@
                     <div id="detalle-saldo" class="text-xl font-black">$0.00</div>
                 </div>
                 <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center">
-                    <button onclick="app.sendReminder()" class="text-xs font-bold bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 transition flex items-center gap-1">
-                        <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Compartir Resumen
+                    <button onclick="app.sendReminder()" class="text-xs font-bold bg-green-50 text-green-700 px-3 py-2 rounded-xl hover:bg-green-100 active:bg-green-200 transition flex items-center gap-1.5">
+                        <i data-lucide="share-2" class="w-4 h-4"></i> Compartir Resumen
                     </button>
-                    <select id="select-order-deuda" onchange="app.loadPersonaDetail(app.currentPersonaId)" class="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none">
+                    <select id="select-order-deuda" onchange="app.loadPersonaDetail(app.currentPersonaId)" class="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-xs text-gray-600 focus:outline-none">
                         <option value="recientes">Recientes</option>
                         <option value="monto">Mayor Monto</option>
                     </select>
@@ -119,30 +148,30 @@
         </main>
 
         <!-- Botones Flotantes (FAB) -->
-        <button id="fab-main" class="absolute bottom-6 right-6 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-transform z-20" onclick="app.openModal('modal-persona')">
+        <button id="fab-main" class="fixed fab-position bg-indigo-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-transform z-20" onclick="app.openModal('modal-persona')">
             <i data-lucide="plus" class="w-7 h-7"></i>
         </button>
 
-        <button id="fab-deuda" class="absolute bottom-6 right-6 bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-transform z-20 hidden" onclick="app.openModal('modal-deuda')">
+        <button id="fab-deuda" class="fixed fab-position bg-indigo-600 text-white w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:bg-indigo-700 active:scale-95 transition-transform z-20 hidden" onclick="app.openModal('modal-deuda')">
             <i data-lucide="receipt" class="w-6 h-6"></i>
         </button>
 
         <!-- Notificaciones Toast -->
-        <div id="toast-notification" class="absolute top-16 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-0 pointer-events-none"></div>
+        <div id="toast-notification" class="fixed top-16 left-1/2 transform -translate-x-1/2 bg-gray-900/95 text-white px-4 py-2.5 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-0 pointer-events-none max-w-[90vw] text-center"></div>
 
         <!-- MODALES -->
-        <div id="modal-backdrop" class="absolute inset-0 bg-black bg-opacity-50 z-30 hidden transition-opacity" onclick="app.closeAllModals()"></div>
+        <div id="modal-backdrop" class="fixed inset-0 bg-black/60 z-30 hidden transition-opacity" onclick="app.closeAllModals()"></div>
 
         <!-- Modal: Ajustes y Backup -->
-        <div id="modal-settings" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col max-h-[90vh]">
-            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
+        <div id="modal-settings" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col max-h-[90dvh]">
+            <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5 flex-shrink-0"></div>
             <h3 class="text-lg font-bold mb-4">Configuración de Copias</h3>
             
-            <div class="space-y-4 mb-6">
+            <div class="space-y-4 mb-6 overflow-y-auto">
                 <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                     <h4 class="font-bold text-sm text-gray-700 mb-1">Frecuencia de Recordatorio</h4>
                     <p class="text-xs text-gray-500 mb-3">La app notificará cuando debas descargar una copia.</p>
-                    <select id="select-backup-freq" onchange="app.saveBackupFrequency()" class="w-full p-2.5 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none">
+                    <select id="select-backup-freq" onchange="app.saveBackupFrequency()" class="w-full p-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none">
                         <option value="nunca">Manual</option>
                         <option value="diaria">Diaria</option>
                         <option value="semanal">Semanal</option>
@@ -153,69 +182,69 @@
                 <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                     <h4 class="font-bold text-sm text-gray-700 mb-1">Exportar / Importar JSON</h4>
                     <div class="flex gap-2 mt-3">
-                        <button onclick="app.exportBackup()" class="flex-1 bg-indigo-50 text-indigo-700 font-bold py-2.5 rounded-xl text-sm hover:bg-indigo-100 transition flex items-center justify-center gap-2">
+                        <button onclick="app.exportBackup()" class="flex-1 bg-indigo-50 text-indigo-700 font-bold py-3 rounded-xl text-sm hover:bg-indigo-100 transition flex items-center justify-center gap-2">
                             <i data-lucide="download" class="w-4 h-4"></i> Exportar
                         </button>
-                        <label class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-300 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <label class="flex-1 bg-gray-200 text-gray-700 font-bold py-3 rounded-xl text-sm hover:bg-gray-300 transition flex items-center justify-center gap-2 cursor-pointer">
                             <i data-lucide="upload" class="w-4 h-4"></i> Importar
                             <input type="file" id="input-restore-file" accept=".json" onchange="app.importBackup(event)" class="hidden">
                         </label>
                     </div>
                 </div>
             </div>
-            <button onclick="app.closeAllModals()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl">Cerrar</button>
+            <button onclick="app.closeAllModals()" class="w-full bg-gray-800 text-white font-bold py-3.5 rounded-xl active:bg-gray-900">Cerrar</button>
         </div>
 
         <!-- Modal: Nueva Persona -->
-        <div id="modal-persona" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
+        <div id="modal-persona" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
             <h3 class="text-lg font-bold mb-4">Nueva Persona</h3>
             <form id="form-persona" onsubmit="app.savePersona(event)">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
-                    <input type="text" id="input-persona-nombre" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none" placeholder="Ej. Carlos Mendoza">
+                    <input type="text" id="input-persona-nombre" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none text-base" placeholder="Ej. Carlos Mendoza">
                 </div>
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700">Guardar</button>
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 active:bg-indigo-800">Guardar</button>
             </form>
         </div>
 
         <!-- Modal: Nueva Deuda -->
-        <div id="modal-deuda" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col max-h-[90vh] overflow-y-auto">
+        <div id="modal-deuda" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col max-h-[90dvh] overflow-y-auto">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5 flex-shrink-0"></div>
             <h3 class="text-lg font-bold mb-4">Registrar Movimiento</h3>
             <form id="form-deuda" onsubmit="app.saveDeuda(event)">
                 <div class="mb-4 flex bg-gray-100 rounded-xl p-1">
                     <label class="flex-1 text-center relative cursor-pointer">
                         <input type="radio" name="tipoDeuda" value="cobrar" class="peer sr-only" checked>
-                        <div class="py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-green-600 peer-checked:shadow-sm transition">Me debe</div>
+                        <div class="py-2.5 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-green-600 peer-checked:shadow-sm transition">Me debe</div>
                     </label>
                     <label class="flex-1 text-center relative cursor-pointer">
                         <input type="radio" name="tipoDeuda" value="pagar" class="peer sr-only">
-                        <div class="py-2 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-red-600 peer-checked:shadow-sm transition">Le debo</div>
+                        <div class="py-2.5 rounded-lg text-sm font-medium text-gray-500 peer-checked:bg-white peer-checked:text-red-600 peer-checked:shadow-sm transition">Le debo</div>
                     </label>
                 </div>
                 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Monto Inicial</label>
-                    <input type="number" id="input-deuda-monto" step="0.01" min="0.01" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none" placeholder="0.00">
+                    <input type="number" id="input-deuda-monto" step="0.01" min="0.01" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none text-base" placeholder="0.00">
                 </div>
 
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Concepto / Motivo</label>
-                    <input type="text" id="input-deuda-desc" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none" placeholder="Ej. Prestamo inicial">
+                    <input type="text" id="input-deuda-desc" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none text-base" placeholder="Ej. Prestamo inicial">
                 </div>
 
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Fecha Límite</label>
-                    <input type="date" id="input-deuda-fecha" class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none">
+                    <input type="date" id="input-deuda-fecha" class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none text-base">
                 </div>
 
-                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700">Registrar</button>
+                <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl hover:bg-indigo-700 active:bg-indigo-800">Registrar</button>
             </form>
         </div>
 
         <!-- Modal: Nuevo Abono -->
-        <div id="modal-abono" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
+        <div id="modal-abono" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
             <h3 class="text-lg font-bold mb-1">Registrar Pago</h3>
             <p id="abono-deuda-desc" class="text-sm text-gray-500 mb-4">Saldo restante: <span id="abono-saldo-pendiente" class="font-bold text-gray-800">$0.00</span></p>
@@ -227,28 +256,28 @@
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Monto Pagado</label>
                     <div class="relative flex items-center">
-                        <input type="number" id="input-abono-monto" step="0.01" min="0.01" required class="w-full border-gray-300 rounded-xl p-3 pr-20 bg-gray-50 border focus:border-indigo-500 outline-none">
-                        <button type="button" onclick="app.setMontoMaximoAbono()" class="absolute right-2 bg-indigo-100 text-indigo-700 text-xs px-2 py-1.5 rounded font-bold">TODO</button>
+                        <input type="number" id="input-abono-monto" step="0.01" min="0.01" required class="w-full border-gray-300 rounded-xl p-3 pr-20 bg-gray-50 border focus:border-indigo-500 outline-none text-base">
+                        <button type="button" onclick="app.setMontoMaximoAbono()" class="absolute right-2 bg-indigo-100 text-indigo-700 text-xs px-2.5 py-2 rounded-lg font-bold">TODO</button>
                     </div>
                 </div>
                 
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nota (Opcional)</label>
-                    <input type="text" id="input-abono-nota" class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none" placeholder="Ej. Pago parcial efectivo">
+                    <input type="text" id="input-abono-nota" class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none text-base" placeholder="Ej. Pago parcial efectivo">
                 </div>
 
-                <button type="submit" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700">Guardar Pago</button>
+                <button type="submit" class="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 active:bg-green-800">Guardar Pago</button>
             </form>
         </div>
 
         <!-- Modal de Confirmación -->
-        <div id="modal-confirm" class="absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
+        <div id="modal-confirm" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
             <h3 id="confirm-title" class="text-lg font-bold mb-2">¿Confirmar eliminación?</h3>
             <p id="confirm-text" class="text-sm text-gray-500 mb-6">Esta acción borrará los registros de la base de datos.</p>
             <div class="flex gap-3">
-                <button onclick="app.closeAllModals()" class="flex-1 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl">Cancelar</button>
-                <button id="confirm-btn-action" class="flex-1 bg-red-600 text-white font-bold py-3 rounded-xl">Eliminar</button>
+                <button onclick="app.closeAllModals()" class="flex-1 bg-gray-100 text-gray-700 font-bold py-3.5 rounded-xl active:bg-gray-200">Cancelar</button>
+                <button id="confirm-btn-action" class="flex-1 bg-red-600 text-white font-bold py-3.5 rounded-xl active:bg-red-700">Eliminar</button>
             </div>
         </div>
 
@@ -273,9 +302,9 @@
             showToast: (msg, error = false) => {
                 const toast = document.getElementById('toast-notification');
                 toast.textContent = msg;
-                toast.className = `absolute top-16 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-100 ${error ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'}`;
+                toast.className = `fixed top-16 left-1/2 transform -translate-x-1/2 px-4 py-2.5 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-100 max-w-[90vw] text-center ${error ? 'bg-red-600 text-white' : 'bg-gray-900/95 text-white'}`;
                 setTimeout(() => {
-                    toast.className = 'absolute top-16 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-0 pointer-events-none';
+                    toast.className = 'fixed top-16 left-1/2 transform -translate-x-1/2 px-4 py-2.5 rounded-xl text-sm shadow-xl z-50 transition-all duration-300 opacity-0 pointer-events-none max-w-[90vw] text-center';
                 }, 2500);
             },
 
