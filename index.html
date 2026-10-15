@@ -260,7 +260,7 @@
     </div>
 
     <script>
-        // CONFIGURACIÓN DE GOOGLE DRIVE (PEGA AQUÍ TU CLIENT_ID)
+        // CONFIGURACIÓN DE GOOGLE DRIVE
         const GOOGLE_CLIENT_ID = '130997176738-1pv41tbh2dmdsc9e6lugctksajd3vbor.apps.googleusercontent.com';
         const FOLDER_NAME = 'Respaldos_GestorDeudas';
         const MAX_BACKUPS = 5;
@@ -342,9 +342,13 @@
                         }, 200);
                     }
                 });
-                document.getElementById('form-persona').reset();
-                document.getElementById('form-deuda').reset();
-                document.getElementById('form-abono').reset();
+                
+                const fPersona = document.getElementById('form-persona');
+                const fDeuda = document.getElementById('form-deuda');
+                const fAbono = document.getElementById('form-abono');
+                if (fPersona) fPersona.reset();
+                if (fDeuda) fDeuda.reset();
+                if (fAbono) fAbono.reset();
             },
 
             loadDashboard: async () => {
@@ -488,7 +492,7 @@
                                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i> Historial de pagos (${abonosDeuda.length})
                                 </button>
                                 <div id="container-abonos-${d.id}" class="hidden mt-2 space-y-1 bg-gray-50 p-2 rounded-xl text-xs">
-                                    ${abonosDeuda.map(a => `<div class="flex justify-between text-gray-600"><span>${app.formatDate(a.fechaPago)} ${a.nota ? '('+a.nota+')' : ''}</span><span class="font-bold text-green-700">+${app.formatMoney(a.monto)}</span></div>`).join('')}
+                                    ${abonosDeuda.map(a => `<div class="flex justify-between text-gray-600"><span>${app.formatDate(a.fechaPago)}${a.nota ? '('+a.nota+')' : ''}</span><span class="font-bold text-green-700">+${app.formatMoney(a.monto)}</span></div>`).join('')}
                                 </div>
                             </div>
                         `;
@@ -514,7 +518,7 @@
                         </div>
                         <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
                             <div>${badge}</div>
-                            ${st !== 'pagado' ? `<button onclick="app.openAbonoModal(${d.id}, ${restante}, '${d.descripcion}')" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">Abonar</button>` : ''}
+                            ${st !== 'pagado' ? `<button onclick="app.openAbonoModal(${d.id}, ${restante}, '${d.descripcion.replace(/'/g, "\\'")}')" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">Abonar</button>` : ''}
                         </div>
                         ${abonosHTML}
                     `;
@@ -565,33 +569,63 @@
             },
 
             openAbonoModal: (dId, max, desc) => {
+                const form = document.getElementById('form-abono');
+                if (form) form.reset();
+
                 document.getElementById('input-abono-deudaid').value = dId;
                 document.getElementById('input-abono-maximo').value = max;
+                document.getElementById('input-abono-monto').value = '';
+                document.getElementById('input-abono-nota').value = '';
+
                 document.getElementById('abono-saldo-pendiente').textContent = app.formatMoney(max);
                 document.getElementById('abono-deuda-desc').innerHTML = `Movimiento: <strong>${desc}</strong>`;
                 app.openModal('modal-abono');
             },
 
             setMontoMaximoAbono: () => {
-                document.getElementById('input-abono-monto').value = document.getElementById('input-abono-maximo').value;
+                const max = document.getElementById('input-abono-maximo').value;
+                if (max) {
+                    document.getElementById('input-abono-monto').value = parseFloat(max);
+                }
             },
 
             saveAbono: async (e) => {
                 e.preventDefault();
-                const deudaId = parseInt(document.getElementById('input-abono-deudaid').value);
-                const monto = parseFloat(document.getElementById('input-abono-monto').value);
-                const max = parseFloat(document.getElementById('input-abono-maximo').value);
+                e.stopPropagation();
+
+                const deudaIdStr = document.getElementById('input-abono-deudaid').value;
+                const montoStr = document.getElementById('input-abono-monto').value;
+                const maxStr = document.getElementById('input-abono-maximo').value;
                 const nota = document.getElementById('input-abono-nota').value.trim();
 
-                if(monto > max) {
+                if (!deudaIdStr || !montoStr) {
+                    app.showToast('Por favor ingrese un monto válido', true);
+                    return;
+                }
+
+                const deudaId = parseInt(deudaIdStr, 10);
+                const monto = parseFloat(montoStr);
+                const max = parseFloat(maxStr);
+
+                if (isNaN(monto) || monto <= 0) {
+                    app.showToast('El monto debe ser mayor a 0', true);
+                    return;
+                }
+
+                if (monto > (max + 0.01)) {
                     app.showToast('El abono excede el saldo restante', true);
                     return;
                 }
 
-                await db.abonos.add({ deudaId, monto, fechaPago: new Date().toISOString(), nota });
-                app.closeAllModals();
-                app.loadPersonaDetail(app.currentPersonaId);
-                app.showToast('Abono registrado');
+                try {
+                    await db.abonos.add({ deudaId, monto, fechaPago: new Date().toISOString(), nota });
+                    app.closeAllModals();
+                    await app.loadPersonaDetail(app.currentPersonaId);
+                    app.showToast('Abono registrado');
+                } catch (err) {
+                    console.error("Error al guardar abono:", err);
+                    app.showToast('Ocurrió un error al registrar el abono', true);
+                }
             },
 
             confirmDeleteDeuda: (dId) => {
@@ -754,7 +788,6 @@
                     return data.files[0].id;
                 }
 
-                // Si no existe, la crea
                 const meta = { name: FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' };
                 const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
                     method: 'POST',
