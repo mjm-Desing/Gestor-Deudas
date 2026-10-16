@@ -223,7 +223,10 @@
         <div id="modal-abono" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col safe-pb">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
             <h3 class="text-lg font-bold mb-1">Registrar Pago</h3>
-            <p id="abono-deuda-desc" class="text-sm text-gray-500 mb-4">Saldo restante: <span id="abono-saldo-pendiente" class="font-bold text-gray-800">$0.00</span></p>
+            <!-- CORRECCIÓN: el nombre del movimiento y el saldo ahora son elementos independientes.
+                 Antes, openAbonoModal() reemplazaba con innerHTML el <p> completo y eliminaba el <span>
+                 del saldo, por lo que en el segundo intento getElementById devolvía null y el modal no abría. -->
+            <p class="text-sm text-gray-500 mb-4">Movimiento: <strong id="abono-deuda-desc" class="text-gray-700"></strong><br>Saldo restante: <span id="abono-saldo-pendiente" class="font-bold text-gray-800">$0.00</span></p>
             
             <form id="form-abono">
                 <input type="hidden" id="input-abono-deudaid">
@@ -265,6 +268,8 @@
         const FOLDER_NAME = 'Respaldos_GestorDeudas';
         const MAX_BACKUPS = 5;
 
+        const ALL_MODALS = ['modal-persona', 'modal-deuda', 'modal-abono', 'modal-confirm', 'modal-settings'];
+
         lucide.createIcons();
 
         // Base de Datos Dexie.js
@@ -281,6 +286,13 @@
             cachePersonasData: [],
             tokenClient: null,
             accessToken: null,
+            modalTimeout: null, // Control de temporizador para evitar conflictos de cierre/apertura
+
+            // Evita que textos escritos por el usuario rompan el HTML
+            escapeHtml: (str) => String(str ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
+
+            // Evita errores de punto flotante (ej. 0.1 + 0.2) en los saldos
+            round2: (n) => Math.round((parseFloat(n) + Number.EPSILON) * 100) / 100,
 
             initEvents: () => {
                 const formPersona = document.getElementById('form-persona');
@@ -328,30 +340,62 @@
             },
 
             openModal: (mId) => {
+                // Cancelar cualquier temporizador de cierre pendiente para evitar colisiones
+                if (app.modalTimeout) {
+                    clearTimeout(app.modalTimeout);
+                    app.modalTimeout = null;
+                }
+
+                // Al cancelar el temporizador, los demás modales que estaban cerrándose
+                // quedarían visibles; se ocultan aquí de inmediato.
+                ALL_MODALS.forEach(id => {
+                    if (id === mId) return;
+                    const other = document.getElementById(id);
+                    other.classList.add('hidden');
+                    other.classList.remove('modal-exit-active', 'modal-enter-active');
+                    other.classList.add('modal-enter');
+                });
+
                 document.getElementById('modal-backdrop').classList.remove('hidden');
                 const modal = document.getElementById(mId);
                 modal.classList.remove('hidden');
+                modal.classList.remove('modal-exit-active');
+                modal.classList.remove('modal-enter-active');
+                modal.classList.add('modal-enter');
+                
                 setTimeout(() => {
                     modal.classList.remove('modal-enter');
                     modal.classList.add('modal-enter-active');
                 }, 10);
+                
                 if(mId === 'modal-deuda') document.getElementById('input-deuda-fecha').value = new Date().toISOString().split('T')[0];
             },
 
             closeAllModals: () => {
+                if (app.modalTimeout) {
+                    clearTimeout(app.modalTimeout);
+                    app.modalTimeout = null;
+                }
+
                 document.getElementById('modal-backdrop').classList.add('hidden');
-                ['modal-persona', 'modal-deuda', 'modal-abono', 'modal-confirm', 'modal-settings'].forEach(id => {
+                
+                ALL_MODALS.forEach(id => {
                     const modal = document.getElementById(id);
                     if(!modal.classList.contains('hidden')){
                         modal.classList.remove('modal-enter-active');
                         modal.classList.add('modal-exit-active');
-                        setTimeout(() => {
-                            modal.classList.add('hidden');
-                            modal.classList.remove('modal-exit-active');
-                            modal.classList.add('modal-enter');
-                        }, 200);
                     }
                 });
+
+                app.modalTimeout = setTimeout(() => {
+                    ALL_MODALS.forEach(id => {
+                        const modal = document.getElementById(id);
+                        modal.classList.add('hidden');
+                        modal.classList.remove('modal-exit-active');
+                        modal.classList.add('modal-enter');
+                    });
+                    app.modalTimeout = null;
+                }, 200);
                 
                 const fPersona = document.getElementById('form-persona');
                 const fDeuda = document.getElementById('form-deuda');
@@ -360,8 +404,10 @@
                 if (fDeuda) fDeuda.reset();
                 if (fAbono) fAbono.reset();
 
-                document.getElementById('input-abono-deudaid').value = '';
-                document.getElementById('input-abono-maximo').value = '';
+                const inputDeudaId = document.getElementById('input-abono-deudaid');
+                const inputMaximo = document.getElementById('input-abono-maximo');
+                if (inputDeudaId) inputDeudaId.value = '';
+                if (inputMaximo) inputMaximo.value = '';
             },
 
             loadDashboard: async () => {
@@ -380,18 +426,20 @@
                     
                     deudasPersona.forEach(d => {
                         const abonosSum = abonos.filter(a => a.deudaId === d.id).reduce((s, a) => s + parseFloat(a.monto), 0);
-                        const restante = parseFloat(d.montoOriginal) - abonosSum;
+                        const restante = app.round2(parseFloat(d.montoOriginal) - abonosSum);
                         if (d.tipo === 'cobrar') subCobrar += restante;
                         if (d.tipo === 'pagar') subPagar += restante;
                     });
 
                     totalCobrar += subCobrar;
                     totalPagar += subPagar;
-                    const saldoNeto = subCobrar - subPagar;
+                    const saldoNeto = app.round2(subCobrar - subPagar);
                     balanceGlobal += saldoNeto;
 
                     return { ...p, saldoNeto };
                 });
+
+                balanceGlobal = app.round2(balanceGlobal);
 
                 const dashTotalEl = document.getElementById('dashboard-total');
                 dashTotalEl.textContent = app.formatMoney(Math.abs(balanceGlobal));
@@ -437,10 +485,10 @@
                     item.innerHTML = `
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
-                                ${p.nombre.charAt(0).toUpperCase()}
+                                ${app.escapeHtml(p.nombre.charAt(0).toUpperCase())}
                             </div>
                             <div>
-                                <h4 class="font-bold text-gray-800">${p.nombre}</h4>
+                                <h4 class="font-bold text-gray-800">${app.escapeHtml(p.nombre)}</h4>
                                 <span class="text-xs text-gray-500">${estadoText}</span>
                             </div>
                         </div>
@@ -473,14 +521,16 @@
 
                 if (deudas.length === 0) {
                     contenedor.innerHTML = `<div class="text-center py-10 text-gray-400"><p>No hay registro de deudas.</p></div>`;
-                    document.getElementById('detalle-saldo').textContent = app.formatMoney(0);
+                    const saldoVacio = document.getElementById('detalle-saldo');
+                    saldoVacio.textContent = app.formatMoney(0);
+                    saldoVacio.className = 'text-xl font-black text-gray-500';
                     return;
                 }
 
                 deudas.forEach(d => {
                     const abonosDeuda = abonos.filter(a => a.deudaId === d.id);
                     const abonadoSum = abonosDeuda.reduce((s, a) => s + parseFloat(a.monto), 0);
-                    const restante = parseFloat(d.montoOriginal) - abonadoSum;
+                    const restante = app.round2(parseFloat(d.montoOriginal) - abonadoSum);
 
                     let st = 'pendiente';
                     if (restante <= 0) st = 'pagado';
@@ -505,7 +555,7 @@
                                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i> Historial de pagos (${abonosDeuda.length})
                                 </button>
                                 <div id="container-abonos-${d.id}" class="hidden mt-2 space-y-1 bg-gray-50 p-2 rounded-xl text-xs">
-                                    ${abonosDeuda.map(a => `<div class="flex justify-between text-gray-600"><span>${app.formatDate(a.fechaPago)}${a.nota ? '('+a.nota+')' : ''}</span><span class="font-bold text-green-700">+${app.formatMoney(a.monto)}</span></div>`).join('')}
+                                    ${abonosDeuda.map(a => `<div class="flex justify-between text-gray-600"><span>${app.formatDate(a.fechaPago)}${a.nota ? ' (' + app.escapeHtml(a.nota) + ')' : ''}</span><span class="font-bold text-green-700">+${app.formatMoney(a.monto)}</span></div>`).join('')}
                                 </div>
                             </div>
                         `;
@@ -523,7 +573,7 @@
                                     <i data-lucide="${isCobrar ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4"></i>
                                 </div>
                                 <div>
-                                    <h4 class="font-bold text-gray-800 text-sm">${d.descripcion}</h4>
+                                    <h4 class="font-bold text-gray-800 text-sm">${app.escapeHtml(d.descripcion)}</h4>
                                     <p class="text-xs text-gray-500">${app.formatDate(d.fechaCreacion)}</p>
                                 </div>
                             </div>
@@ -549,6 +599,7 @@
                     contenedor.appendChild(card);
                 });
 
+                saldoNeto = app.round2(saldoNeto);
                 const detalleSaldoEl = document.getElementById('detalle-saldo');
                 detalleSaldoEl.textContent = app.formatMoney(Math.abs(saldoNeto));
                 detalleSaldoEl.className = `text-xl font-black ${saldoNeto > 0 ? 'text-green-600' : saldoNeto < 0 ? 'text-red-600' : 'text-gray-500'}`;
@@ -557,7 +608,7 @@
 
             toggleAbonos: (id) => {
                 const el = document.getElementById(`container-abonos-${id}`);
-                el.classList.toggle('hidden');
+                if (el) el.classList.toggle('hidden');
             },
 
             savePersona: async (e) => {
@@ -607,8 +658,9 @@
                 document.getElementById('input-abono-monto').value = '';
                 document.getElementById('input-abono-nota').value = '';
 
+                // CORRECCIÓN: se actualizan dos elementos separados (ya no se destruye el span del saldo)
                 document.getElementById('abono-saldo-pendiente').textContent = app.formatMoney(max);
-                document.getElementById('abono-deuda-desc').innerHTML = `Movimiento: <strong>${desc}</strong>`;
+                document.getElementById('abono-deuda-desc').textContent = desc;
                 app.openModal('modal-abono');
             },
 
@@ -700,11 +752,73 @@
                 app.openModal('modal-confirm');
             },
 
-            sendReminder: () => {
+            // Genera y comparte el resumen con el detalle desglosado de cada deuda
+            sendReminder: async () => {
+                if (app.currentPersonaId === null) return;
+
                 const nombre = document.getElementById('detalle-nombre').textContent;
-                const saldo = document.getElementById('detalle-saldo').textContent;
-                const msg = `Hola ${nombre}, te envío el resumen de nuestro saldo pendiente en la app: ${saldo}.`;
-                if(navigator.share) {
+                const deudas = await db.deudas.where({ personaId: app.currentPersonaId }).toArray();
+                const abonos = await db.abonos.toArray();
+                deudas.sort((a, b) => new Date(a.fechaCreacion) - new Date(b.fechaCreacion));
+
+                const lineasCobrar = [];
+                const lineasPagar = [];
+                let totalCobrar = 0;
+                let totalPagar = 0;
+
+                deudas.forEach(d => {
+                    const abonosDeuda = abonos.filter(a => a.deudaId === d.id);
+                    const abonado = app.round2(abonosDeuda.reduce((s, a) => s + parseFloat(a.monto), 0));
+                    const original = app.round2(d.montoOriginal);
+                    const restante = app.round2(original - abonado);
+                    if (restante <= 0) return; // Las deudas saldadas no se incluyen
+
+                    const bloque = [];
+                    bloque.push(`• ${d.descripcion} (${app.formatDate(d.fechaCreacion)})`);
+                    bloque.push(`   Monto original: ${app.formatMoney(original)}`);
+                    if (abonosDeuda.length > 0) {
+                        bloque.push(`   Pagos realizados:`);
+                        abonosDeuda.forEach(a => {
+                            bloque.push(`     - ${app.formatDate(a.fechaPago)}: ${app.formatMoney(a.monto)}${a.nota ? ' (' + a.nota + ')' : ''}`);
+                        });
+                        bloque.push(`   Total abonado: ${app.formatMoney(abonado)}`);
+                    }
+                    bloque.push(`   Saldo pendiente: ${app.formatMoney(restante)}`);
+
+                    if (d.tipo === 'cobrar') {
+                        lineasCobrar.push(bloque.join('\n'));
+                        totalCobrar += restante;
+                    } else {
+                        lineasPagar.push(bloque.join('\n'));
+                        totalPagar += restante;
+                    }
+                });
+
+                totalCobrar = app.round2(totalCobrar);
+                totalPagar = app.round2(totalPagar);
+                const neto = app.round2(totalCobrar - totalPagar);
+
+                let msg = `Hola ${nombre}, te envío el detalle de nuestras cuentas:\n`;
+
+                if (lineasCobrar.length === 0 && lineasPagar.length === 0) {
+                    msg += `\nActualmente no tenemos saldos pendientes. ¡Todo está al día!`;
+                } else {
+                    if (lineasCobrar.length > 0) {
+                        msg += `\n*Lo que me debes:*\n${lineasCobrar.join('\n\n')}\n`;
+                        msg += `Subtotal: ${app.formatMoney(totalCobrar)}\n`;
+                    }
+                    if (lineasPagar.length > 0) {
+                        msg += `\n*Lo que te debo:*\n${lineasPagar.join('\n\n')}\n`;
+                        msg += `Subtotal: ${app.formatMoney(totalPagar)}\n`;
+                    }
+
+                    msg += `\n*SALDO FINAL:* `;
+                    if (neto > 0) msg += `Me debes ${app.formatMoney(neto)}.`;
+                    else if (neto < 0) msg += `Te debo ${app.formatMoney(Math.abs(neto))}.`;
+                    else msg += `Estamos a mano (${app.formatMoney(0)}).`;
+                }
+
+                if (navigator.share) {
                     navigator.share({ title: 'Estado de Cuenta', text: msg }).catch(() => {});
                 } else {
                     const t = document.createElement('textarea');
@@ -757,6 +871,8 @@
                     } catch (err) {
                         app.showToast('Archivo JSON no válido', true);
                     }
+                    // Permite volver a importar el mismo archivo
+                    e.target.value = '';
                 };
                 reader.readAsText(file);
             },
@@ -781,6 +897,10 @@
 
             syncWithGoogleDrive: () => {
                 if (!app.tokenClient) app.initGoogleDrive();
+                if (!app.tokenClient) {
+                    app.showToast('Google no está disponible todavía. Revisa tu conexión.', true);
+                    return;
+                }
                 if (GOOGLE_CLIENT_ID.includes('TU_CLIENT_ID')) {
                     app.showToast('Falta configurar tu Client ID de Google', true);
                     return;
@@ -836,6 +956,7 @@
                     body: JSON.stringify(meta)
                 });
                 const folderData = await createRes.json();
+                if (!folderData.id) throw new Error('No se pudo crear la carpeta en Drive');
                 return folderData.id;
             },
 
@@ -845,11 +966,12 @@
                 form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
                 form.append('file', new Blob([content], { type: 'application/json' }));
 
-                await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${app.accessToken}` },
                     body: form
                 });
+                if (!res.ok) throw new Error('Fallo al subir el archivo a Drive');
             },
 
             cleanOldDriveBackups: async (folderId) => {
