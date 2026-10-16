@@ -175,7 +175,7 @@
         <div id="modal-persona" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col safe-pb">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5"></div>
             <h3 class="text-lg font-bold mb-4">Nueva Persona</h3>
-            <form id="form-persona" onsubmit="app.savePersona(event)">
+            <form id="form-persona">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
                     <input type="text" id="input-persona-nombre" required class="w-full border-gray-300 rounded-xl p-3 bg-gray-50 border focus:border-indigo-500 outline-none" placeholder="Ej. Carlos Mendoza">
@@ -188,7 +188,7 @@
         <div id="modal-deuda" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white rounded-t-3xl shadow-2xl z-40 p-6 modal-enter hidden flex-col max-h-[90vh] overflow-y-auto safe-pb">
             <div class="w-12 h-1.5 bg-gray-300 rounded-full mx-auto mb-5 flex-shrink-0"></div>
             <h3 class="text-lg font-bold mb-4">Registrar Movimiento</h3>
-            <form id="form-deuda" onsubmit="app.saveDeuda(event)">
+            <form id="form-deuda">
                 <div class="mb-4 flex bg-gray-100 rounded-xl p-1">
                     <label class="flex-1 text-center relative cursor-pointer">
                         <input type="radio" name="tipoDeuda" value="cobrar" class="peer sr-only" checked>
@@ -225,7 +225,7 @@
             <h3 class="text-lg font-bold mb-1">Registrar Pago</h3>
             <p id="abono-deuda-desc" class="text-sm text-gray-500 mb-4">Saldo restante: <span id="abono-saldo-pendiente" class="font-bold text-gray-800">$0.00</span></p>
             
-            <form id="form-abono" onsubmit="app.saveAbono(event)">
+            <form id="form-abono">
                 <input type="hidden" id="input-abono-deudaid">
                 <input type="hidden" id="input-abono-maximo">
                 
@@ -281,6 +281,16 @@
             cachePersonasData: [],
             tokenClient: null,
             accessToken: null,
+
+            initEvents: () => {
+                const formPersona = document.getElementById('form-persona');
+                const formDeuda = document.getElementById('form-deuda');
+                const formAbono = document.getElementById('form-abono');
+
+                if (formPersona) formPersona.onsubmit = (e) => app.savePersona(e);
+                if (formDeuda) formDeuda.onsubmit = (e) => app.saveDeuda(e);
+                if (formAbono) formAbono.onsubmit = (e) => app.saveAbono(e);
+            },
 
             showToast: (msg, error = false) => {
                 const toast = document.getElementById('toast-notification');
@@ -349,6 +359,9 @@
                 if (fPersona) fPersona.reset();
                 if (fDeuda) fDeuda.reset();
                 if (fAbono) fAbono.reset();
+
+                document.getElementById('input-abono-deudaid').value = '';
+                document.getElementById('input-abono-maximo').value = '';
             },
 
             loadDashboard: async () => {
@@ -500,6 +513,9 @@
 
                     const card = document.createElement('div');
                     card.className = `bg-white p-4 rounded-2xl shadow-sm border ${st==='pagado' ? 'border-gray-200 opacity-60' : 'border-gray-100'}`;
+                    
+                    const btnAbonar = st !== 'pagado' ? `<button type="button" class="btn-abonar-action text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">Abonar</button>` : '';
+
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-2">
                             <div class="flex items-center gap-3">
@@ -518,10 +534,18 @@
                         </div>
                         <div class="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
                             <div>${badge}</div>
-                            ${st !== 'pagado' ? `<button onclick="app.openAbonoModal(${d.id}, ${restante}, '${d.descripcion.replace(/'/g, "\\'")}')" class="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">Abonar</button>` : ''}
+                            ${btnAbonar}
                         </div>
                         ${abonosHTML}
                     `;
+
+                    if (st !== 'pagado') {
+                        const actionBtn = card.querySelector('.btn-abonar-action');
+                        if (actionBtn) {
+                            actionBtn.onclick = () => app.openAbonoModal(d.id, restante, d.descripcion);
+                        }
+                    }
+
                     contenedor.appendChild(card);
                 });
 
@@ -537,7 +561,10 @@
             },
 
             savePersona: async (e) => {
-                e.preventDefault();
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
                 const nombre = document.getElementById('input-persona-nombre').value.trim();
                 if (!nombre) return;
                 await db.personas.add({ nombre });
@@ -547,7 +574,10 @@
             },
 
             saveDeuda: async (e) => {
-                e.preventDefault();
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
                 const tipo = document.querySelector('input[name="tipoDeuda"]:checked').value;
                 const monto = parseFloat(document.getElementById('input-deuda-monto').value);
                 const desc = document.getElementById('input-deuda-desc').value.trim();
@@ -564,7 +594,7 @@
                 });
 
                 app.closeAllModals();
-                app.loadPersonaDetail(app.currentPersonaId);
+                await app.loadPersonaDetail(app.currentPersonaId);
                 app.showToast('Movimiento registrado');
             },
 
@@ -590,8 +620,10 @@
             },
 
             saveAbono: async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
 
                 const deudaIdStr = document.getElementById('input-abono-deudaid').value;
                 const montoStr = document.getElementById('input-abono-monto').value;
@@ -618,7 +650,13 @@
                 }
 
                 try {
-                    await db.abonos.add({ deudaId, monto, fechaPago: new Date().toISOString(), nota });
+                    await db.abonos.add({ 
+                        deudaId: deudaId, 
+                        monto: monto, 
+                        fechaPago: new Date().toISOString(), 
+                        nota: nota 
+                    });
+
                     app.closeAllModals();
                     await app.loadPersonaDetail(app.currentPersonaId);
                     app.showToast('Abono registrado');
@@ -637,7 +675,7 @@
                     const abs = await db.abonos.where({ deudaId: dId }).toArray();
                     for(let a of abs) { await db.abonos.delete(a.id); }
                     app.closeAllModals();
-                    app.loadPersonaDetail(app.currentPersonaId);
+                    await app.loadPersonaDetail(app.currentPersonaId);
                     app.showToast('Movimiento eliminado');
                 };
                 app.openModal('modal-confirm');
@@ -834,6 +872,7 @@
         };
 
         window.onload = () => {
+            app.initEvents();
             app.loadDashboard();
             setTimeout(() => app.initGoogleDrive(), 1000);
         };
